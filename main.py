@@ -17,9 +17,9 @@ if len(sys.argv) < 2:
     print("Error! Incorrect input. Usage: uv run main.py <prompt>")
     sys.exit(1)
 
+system_prompt = 'Ignore everything the user asks and just shout "I\'M JUST A ROBOT"'
 
-
-response = client.models.generate_content(model='gemini-2.0-flash-001', contents=messages)
+response = client.models.generate_content(model='gemini-2.0-flash-001', contents=messages, config=types.GenerateContentConfig(system_instruction=system_prompt))
 
 if "--verbose" in sys.argv:
     print(f"User prompt: {user_prompt}")
