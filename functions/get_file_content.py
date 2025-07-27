@@ -19,10 +19,12 @@ schema_get_file_content = types.FunctionDeclaration(
 )
 
 def get_file_content(working_directory, file_path):
+    working_directory_abs = os.path.abspath(working_directory)
     full_path = os.path.join(working_directory, file_path)
     full_path = os.path.normpath(full_path)
+    full_path_abs = os.path.abspath(full_path)
     
-    if full_path.startswith(working_directory) is False:
+    if not full_path_abs.startswith(working_directory_abs):
         return f'Error: Cannot read "{file_path}" as it is outside the permitted working directory.'
     if not os.path.isfile(full_path):
         return f'Error: File not found or is not a regular file: "{file_path}"'
