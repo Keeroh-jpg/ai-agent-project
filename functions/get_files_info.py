@@ -8,7 +8,7 @@ schema_get_files_info = types.FunctionDeclaration(
     name="get_files_info",
     description="Lists files and directories in the specified directory, including their sizes and whether they are directories.",
     parameters=types.Schema(
-        types.Type.OBJECT,
+        type=types.Type.OBJECT,
         properties={
             "directory": types.Schema(
                 type=types.Type.STRING,
