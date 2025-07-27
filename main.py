@@ -20,18 +20,21 @@ if len(sys.argv) < 2:
     print("Error! Incorrect input. Usage: uv run main.py <prompt>")
     sys.exit(1)
 
-system_prompt = """
-You are a helpful AI coding agent.
+system_prompt = """You are a helpful coding assistant with access to file system tools. You can:
 
-When a user asks a question or makes a request, make a function call plan. You can perform the following operations:
+1. get_files_info() - Get information about files in the working directory
+2. get_file_content(file_path) - Read the contents of a specific file
+3. write_file(file_path, content) - Write content to a file
+4. run_python_file(file_path) - Execute a Python file and see its output
 
-- List files and directories
-- Read file contents
-- Execute Python files with optional arguments
-- Write or overwrite files
+When a user asks about code or files, you should:
+1. First use get_files_info() to see what files are available
+2. Use get_file_content() to examine relevant files
+3. Provide detailed explanations based on the actual code you find
 
-All paths you provide should be relative to the working directory. You do not need to specify the working directory in your function calls as it is automatically injected for security reasons.
-"""
+The working directory contains a calculator application. When users ask questions about "the calculator", they're referring to the files in this directory.
+
+Always use your tools to investigate before answering questions about code or functionality."""
 available_functions = types.Tool(
     function_declarations=[
         schema_get_files_info,
@@ -41,16 +44,9 @@ available_functions = types.Tool(
     ]
 )
 
-
-response = client.models.generate_content(model='gemini-2.0-flash-001', contents=messages, config=types.GenerateContentConfig(tools=[available_functions], system_instruction=system_prompt))
-
-function_call_part = response.function_calls[0]
-function_name = function_call_part.name
-function_args = function_call_part.args
-
-
-
 def call_function(function_call_part, verbose=False):
+    function_args = function_call_part.args
+    function_name = function_call_part.name
     args_with_working_directory = function_args.copy()
     args_with_working_directory["working_directory"] = "./calculator"
     function_mapping = {
@@ -61,11 +57,12 @@ def call_function(function_call_part, verbose=False):
     }
     if verbose == True:
         print(f"Calling function: {function_call_part.name} with args: {function_call_part.args}")
-        print(f" - Calling function: {function_call_part.name}")
+    
+    if verbose == False:
+        print(f"Calling function: {function_call_part.name}")
+        
 
     if function_call_part.name in function_mapping:
-        
-        
         function_to_call = function_mapping[function_call_part.name]
         function_result = function_to_call(**args_with_working_directory)
         return types.Content(role="tool", parts=[types.Part.from_function_response(name=function_name, response={"result": function_result})])
@@ -73,9 +70,37 @@ def call_function(function_call_part, verbose=False):
     else:
         return types.Content(role="tool", parts=[types.Part.from_function_response(name=function_name, response={"error": f"Unknown function: {function_name}"})])
 
-    
 
 
+max_iterations = 20
+for i in range(max_iterations):
+    try:
+        response = client.models.generate_content(model='gemini-2.0-flash-001', contents=messages, config=types.GenerateContentConfig(tools=[available_functions], system_instruction=system_prompt))
+        
+        for candidate in response.candidates:
+            messages.append(candidate.content)
+        
+        has_function_calls = False
+        for candidate in response.candidates:
+            if candidate.content.parts:
+                for part in candidate.content.parts:
+                    if hasattr(part, 'function_call') and part.function_call:
+                        has_function_calls = True
+                        function_call_part = part.function_call
+                        function_name = function_call_part.name
+                        function_args = function_call_part.args
+                        tool_response = call_function(function_call_part, verbose=True)
+                        messages.append(tool_response)
+
+
+        if not has_function_calls and response.text:
+            print("Final response:")
+            print(response.text)
+            break
+
+    except Exception as e:
+        print(f"Error occurred: {e}")
+        break
 
 
 if response.function_calls:
@@ -86,8 +111,7 @@ if response.function_calls:
             raise Exception("Function call returned no response.")
     except (AttributeError, IndexError):
         raise Exception("Function call result missing expected response structure.")
-    if verbose:
-        print(f"-> {response_data}")  
+    
           
 
          
